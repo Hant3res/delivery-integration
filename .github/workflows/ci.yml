@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -21,16 +21,37 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install flask pytest
+        pip install flask flask-cors sqlalchemy requests tenacity pytest
+    
+    - name: Run unit tests
+      run: |
+        python -m unittest discover tests/unit -v
     
     - name: Check Python syntax
       run: |
         python -m py_compile module_a_dispatcher.py
         python -m py_compile module_b_tracking.py
         python -m py_compile module_c_notify.py
+        python -m py_compile state_machine.py
+        python -m py_compile saga.py
+        python -m py_compile resilience.py
+        python -m py_compile logger_config.py
     
-    - name: Run tests
-      run: pytest tests/ -v
+    - name: Start services
+      run: |
+        python module_a_dispatcher.py &
+        python module_b_tracking.py &
+        python module_c_notify.py &
+        sleep 5
     
-    - name: Check files exist
-      run: ls -la
+    - name: Run integration tests
+      run: |
+        python -m unittest discover tests/integration -v
+    
+    - name: Run E2E tests
+      run: |
+        python -m unittest discover tests/e2e -v
+    
+    - name: Stop services
+      run: |
+        pkill -f "python module_" || true

@@ -3,14 +3,18 @@ from flask_cors import CORS
 from datetime import datetime
 import sys
 import os
+import logging
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database.models import init_db, get_db, Delivery, TrackingHistory
+from database.models import init_db, get_db, Delivery, TrackingHistory, Courier
 
 app = Flask(__name__)
 CORS(app)
 init_db()
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 @app.route('/track/update', methods=['POST'])
 def update_location():
@@ -64,15 +68,35 @@ def complete_delivery():
         return jsonify({"error": "task_id required"}), 400
     
     db = next(get_db())
-    delivery = db.query(Delivery).filter(Delivery.task_id == task_id).first()
-    if delivery:
-        delivery.status = "delivered"
-        delivery.proof = proof
-        delivery.completed_at = datetime.utcnow()
-        db.commit()
     
+    # Get delivery
+    delivery = db.query(Delivery).filter(Delivery.task_id == task_id).first()
+    
+    if not delivery:
+        db.close()
+        return jsonify({"error": "Delivery not found"}), 404
+    
+    # Get courier by courier_id
+    courier = db.query(Courier).filter(Courier.courier_id == delivery.courier_id).first()
+    
+    # Update delivery status
+    delivery.status = "delivered"
+    delivery.proof = proof
+    delivery.completed_at = datetime.utcnow()
+    
+    # FREE THE COURIER - set available to True
+    if courier:
+        courier.available = True
+        logger.info(f"Courier {courier.name} ({courier.courier_id}) is now AVAILABLE")
+    
+    db.commit()
     db.close()
-    return jsonify({"message": "Delivery completed", "status": "delivered"}), 200
+    
+    return jsonify({
+        "message": "Delivery completed",
+        "status": "delivered",
+        "courier_freed": courier.name if courier else None
+    }), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)
