@@ -1,0 +1,17 @@
+2026-06-06 10:00:01 - orchestrator - INFO - Orchestrator initialized
+2026-06-06 10:00:01 - orchestrator - INFO - Starting full delivery workflow for order: ORD-INTEGRATION-001
+2026-06-06 10:00:01 - orchestrator - INFO - Assigning delivery for order: ORD-INTEGRATION-001
+2026-06-06 10:00:02 - orchestrator - INFO - Delivery assigned successfully: {'task_id': 'a1b2c3d4', 'courier_name': 'Ivan', 'status': 'assigned'}
+2026-06-06 10:00:02 - orchestrator - INFO - Sending notification to: +79001234567
+2026-06-06 10:00:03 - orchestrator - INFO - Notification sent to: +79001234567
+2026-06-06 10:00:03 - orchestrator - INFO - Updating tracking for task: a1b2c3d4
+2026-06-06 10:00:04 - orchestrator - INFO - Location updated for task: a1b2c3d4
+2026-06-06 10:00:05 - orchestrator - INFO - Updating tracking for task: a1b2c3d4
+2026-06-06 10:00:06 - orchestrator - INFO - Location updated for task: a1b2c3d4
+2026-06-06 10:00:07 - orchestrator - INFO - Getting status for task: a1b2c3d4
+2026-06-06 10:00:07 - orchestrator - INFO - Status retrieved: {'task_id': 'a1b2c3d4', 'status': 'in_transit'}
+2026-06-06 10:00:07 - orchestrator - INFO - Completing delivery for task: a1b2c3d4
+2026-06-06 10:00:08 - orchestrator - INFO - Delivery completed for task: a1b2c3d4
+2026-06-06 10:00:08 - orchestrator - INFO - Sending notification to: +79001234567
+2026-06-06 10:00:09 - orchestrator - INFO - Notification sent to: +79001234567
+2026-06-06 10:00:09 - orchestrator - INFO - Workflow completed for order: ORD-INTEGRATION-001
