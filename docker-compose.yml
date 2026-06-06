@@ -2,40 +2,51 @@ version: '3.8'
 
 services:
   dispatcher:
-    build:
-      context: .
-      dockerfile: Dockerfile.dispatcher
+    build: .
+    dockerfile: Dockerfile.dispatcher
     container_name: delivery-dispatcher
     ports:
       - "5001:5001"
     volumes:
-      - sqlite_data:/app
+      - ./module_a_dispatcher.py:/app/module_a_dispatcher.py
+      - ./database:/app/database
+      - ./delivery.db:/app/delivery.db
     networks:
       - delivery-network
+    restart: unless-stopped
 
   tracking:
-    build:
-      context: .
-      dockerfile: Dockerfile.tracking
+    build: .
+    dockerfile: Dockerfile.tracking
     container_name: delivery-tracking
     ports:
       - "5002:5002"
     volumes:
-      - sqlite_data:/app
+      - ./module_b_tracking.py:/app/module_b_tracking.py
+      - ./database:/app/database
+      - ./delivery.db:/app/delivery.db
     networks:
       - delivery-network
+    restart: unless-stopped
+    depends_on:
+      - dispatcher
 
   notify:
-    build:
-      context: .
-      dockerfile: Dockerfile.notify
+    build: .
+    dockerfile: Dockerfile.notify
     container_name: delivery-notify
     ports:
       - "5003:5003"
     volumes:
-      - sqlite_data:/app
+      - ./module_c_notify.py:/app/module_c_notify.py
+      - ./database:/app/database
+      - ./delivery.db:/app/delivery.db
     networks:
       - delivery-network
+    restart: unless-stopped
+    depends_on:
+      - dispatcher
+      - tracking
 
   frontend:
     image: nginx:alpine
@@ -44,15 +55,13 @@ services:
       - "80:80"
     volumes:
       - ./frontend:/usr/share/nginx/html
+    networks:
+      - delivery-network
+    restart: unless-stopped
     depends_on:
       - dispatcher
       - tracking
       - notify
-    networks:
-      - delivery-network
-
-volumes:
-  sqlite_data:
 
 networks:
   delivery-network:
