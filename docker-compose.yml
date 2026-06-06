@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  dispatcher:
+    build: ./module_a_dispatcher
+    ports:
+      - "5001:5001"
+    networks:
+      - delivery-network
+    environment:
+      - FLASK_ENV=development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/couriers"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  tracking:
+    build: ./module_b_tracking
+    ports:
+      - "5002:5002"
+    networks:
+      - delivery-network
+    environment:
+      - FLASK_ENV=development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/track/demo_123"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  notify:
+    build: ./module_c_notify
+    ports:
+      - "5003:5003"
+    networks:
+      - delivery-network
+    environment:
+      - FLASK_ENV=development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/notifications"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  delivery-network:
+    driver: bridge

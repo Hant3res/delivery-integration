@@ -1,0 +1,168 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # Job 1: Линтинг (проверка стиля кода)
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [module_a_dispatcher, module_b_tracking, module_c_notify]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8 linting on ${{ matrix.module }}
+        run: flake8 ${{ matrix.module }} --max-line-length=120 --ignore=E501,W503
+        continue-on-error: false
+
+  # Job 2: Тестирование
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        module: [module_a_dispatcher, module_b_tracking, module_c_notify]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install flask pytest pytest-cov
+          pip install -r ${{ matrix.module }}/requirements.txt
+
+      - name: Create basic tests
+        run: |
+          cat > test_${{ matrix.module }}.py << 'TESTEOF'
+import pytest
+import json
+
+def test_module_import():
+    """Проверка, что модуль может быть импортирован"""
+    try:
+        exec(open('${{ matrix.module }}/app.py').read())
+        assert True
+    except Exception as e:
+        pytest.fail(f"Module import failed: {e}")
+TESTEOF
+
+      - name: Run tests
+        run: pytest test_${{ matrix.module }}.py -v --cov=./ --cov-report=xml
+
+  # Job 3: Сборка Docker образов
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service:
+          - name: dispatcher
+            context: ./module_a_dispatcher
+            port: 5001
+          - name: tracking
+            context: ./module_b_tracking
+            port: 5002
+          - name: notify
+            context: ./module_c_notify
+            port: 5003
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for ${{ matrix.service.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          push: false
+          tags: delivery-${{ matrix.service.name }}:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 4: Интеграционное тестирование с docker-compose
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build all images with docker-compose
+        run: docker-compose build
+
+      - name: Start services with docker-compose
+        run: docker-compose up -d
+
+      - name: Wait for services to be ready
+        run: |
+          sleep 10
+          echo "Waiting for services..."
+
+      - name: Test Dispatcher (port 5001)
+        run: |
+          curl -f http://localhost:5001/couriers || exit 1
+          echo "Dispatcher OK"
+
+      - name: Test Tracking (port 5002)
+        run: |
+          curl -f http://localhost:5002/track/demo_123 || exit 1
+          echo "Tracking OK"
+
+      - name: Test Notify (port 5003)
+        run: |
+          curl -f http://localhost:5003/notifications || exit 1
+          echo "Notify OK"
+
+      - name: Full integration test - assign delivery
+        run: |
+          response=$(curl -s -X POST http://localhost:5001/assign \
+            -H "Content-Type: application/json" \
+            -d '{"order_id":"TEST-001","address":"Test Address","recipient_phone":"+79999999999"}')
+          echo "Assign response: $response"
+          echo "$response" | grep -q "task_id" || exit 1
+
+      - name: Stop services
+        run: docker-compose down
+
+  # Job 5: Уведомление о статусе (опционально)
+  notify-status:
+    runs-on: ubuntu-latest
+    needs: [lint, test, docker-build, integration-test]
+    if: always()
+    steps:
+      - name: Check status
+        run: |
+          if [ "${{ needs.lint.result }}" = "success" ] && \
+             [ "${{ needs.test.result }}" = "success" ] && \
+             [ "${{ needs.docker-build.result }}" = "success" ] && \
+             [ "${{ needs.integration-test.result }}" = "success" ]; then
+            echo "✅ Все проверки пройдены успешно!"
+          else
+            echo "❌ Некоторые проверки не пройдены!"
+            exit 1
+          fi
