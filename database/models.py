@@ -8,20 +8,20 @@ Base = declarative_base()
 
 class Courier(Base):
     __tablename__ = 'couriers'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    courier_id = Column(String(50), unique=True, nullable=False)
-    name = Column(String(100), nullable=False)
+    id = Column(Integer, primary_key=True)
+    courier_id = Column(String(50), unique=True)
+    name = Column(String(100))
     available = Column(Boolean, default=True)
     location = Column(String(200))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Delivery(Base):
     __tablename__ = 'deliveries'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(50), unique=True, nullable=False)
-    order_id = Column(String(50), nullable=False)
-    address = Column(String(500), nullable=False)
-    recipient_phone = Column(String(20), nullable=False)
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(50), unique=True)
+    order_id = Column(String(50))
+    address = Column(String(500))
+    recipient_phone = Column(String(20))
     courier_id = Column(String(50))
     courier_name = Column(String(100))
     status = Column(String(50), default='assigned')
@@ -31,8 +31,8 @@ class Delivery(Base):
 
 class TrackingHistory(Base):
     __tablename__ = 'tracking_history'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(50), nullable=False)
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(50))
     lat = Column(Float)
     lng = Column(Float)
     status = Column(String(50))
@@ -40,8 +40,8 @@ class TrackingHistory(Base):
 
 class Notification(Base):
     __tablename__ = 'notifications'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    recipient = Column(String(50), nullable=False)
+    id = Column(Integer, primary_key=True)
+    recipient = Column(String(50))
     type = Column(String(20), default='sms')
     message = Column(Text)
     order_id = Column(String(50))
@@ -49,18 +49,13 @@ class Notification(Base):
     sent_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# MySQL connection
-# Format: mysql+pymysql://user:password@host:port/database
-DATABASE_URL = os.getenv('DATABASE_URL', 'mysql+pymysql://delivery_user:delivery_pass@localhost:3306/delivery_db')
-
-engine = create_engine(DATABASE_URL, echo=False)
+# SQLite database
+engine = create_engine('sqlite:///delivery.db', echo=False)
 SessionLocal = sessionmaker(bind=engine)
 
 def init_db():
     Base.metadata.create_all(engine)
     db = SessionLocal()
-    
-    # Check if couriers exist
     if db.query(Courier).count() == 0:
         couriers = [
             Courier(courier_id="courier_1", name="Ivan", available=True, location="Moscow"),

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Integration System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: bold;
+        }
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-created { background-color: #ffc107; color: #000; }
+        .status-assigned { background-color: #17a2b8; color: #fff; }
+        .status-in_transit { background-color: #007bff; color: #fff; }
+        .status-delivered { background-color: #28a745; color: #fff; }
+        .status-failed { background-color: #dc3545; color: #fff; }
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .log-time {
+            color: #6c757d;
+            font-weight: bold;
+        }
+        #liveMap {
+            height: 300px;
+            background: #e9ecef;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        .courier-dot {
+            width: 20px;
+            height: 20px;
+            background: #dc3545;
+            border-radius: 50%;
+            position: absolute;
+            transition: all 0.5s ease;
+            box-shadow: 0 0 10px rgba(220,53,69,0.5);
+        }
+        .delivery-point {
+            width: 15px;
+            height: 15px;
+            background: #28a745;
+            border-radius: 50%;
+            position: absolute;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .notification-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            min-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="notification-toast" id="notificationToast"></div>
+
+    <div class="container py-4">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h1 class="text-white">
+                <i class="fas fa-truck"></i> Delivery Integration System
+            </h1>
+            <p class="text-white-50">Last Mile Delivery Management</p>
+        </div>
+
+        <div class="row">
+            <!-- Left Column - Order Form -->
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-shopping-cart"></i> Create New Delivery
+                    </div>
+                    <div class="card-body">
+                        <form id="deliveryForm">
+                            <div class="mb-3">
+                                <label class="form-label">Order ID</label>
+                                <input type="text" class="form-control" id="orderId" value="ORD-" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Delivery Address</label>
+                                <input type="text" class="form-control" id="address" value="Moscow, Red Square, 1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Recipient Phone</label>
+                                <input type="tel" class="form-control" id="phone" value="+79001234567" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                                <i class="fas fa-paper-plane"></i> Create Delivery
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Couriers Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-users"></i> Available Couriers
+                    </div>
+                    <div class="card-body" id="couriersList">
+                        <div class="text-center">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Notifications -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-bell"></i> Recent Notifications
+                    </div>
+                    <div class="card-body" id="notificationsList" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center">No notifications yet</div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-sm btn-outline-secondary w-100" onclick="loadNotifications()">
+                            <i class="fas fa-refresh"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Tracking & Status -->
+            <div class="col-md-7">
+                <!-- Active Delivery Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-map-marker-alt"></i> Current Delivery Status
+                    </div>
+                    <div class="card-body">
+                        <div id="activeDeliveryInfo">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-info-circle"></i> No active delivery. Create one to start tracking.
+                            </div>
+                        </div>
+                        <div id="liveMap" class="mt-3">
+                            <canvas id="mapCanvas" width="100%" height="100%" style="width:100%;height:100%"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Delivery History -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-history"></i> Delivery History
+                    </div>
+                    <div class="card-body" id="deliveriesList" style="max-height: 300px; overflow-y: auto;">
+                        <div class="text-center">Loading...</div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-sm btn-outline-secondary w-100" onclick="loadDeliveries()">
+                            <i class="fas fa-refresh"></i> Refresh History
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Integration Log -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-terminal"></i> Integration Log
+                    </div>
+                    <div class="card-body" id="logPanel" style="max-height: 200px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 12px;">
+                        <div class="log-entry">System ready. Waiting for actions...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTaskId = null;
+        let pollingInterval = null;
+        let courierLocation = { lat: 55.7558, lng: 37.6173 };
+        let deliveryAddress = { lat: 55.7558, lng: 37.6173 };
+
+        // Helper: Add log entry
+        function addLog(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const time = new Date().toLocaleTimeString();
+            const colors = { info: '#4ec9b0', error: '#f48771', success: '#6a9955', warning: '#dcdcaa' };
+            const logDiv = document.createElement('div');
+            logDiv.className = 'log-entry';
+            logDiv.innerHTML = `<span class="log-time">[${time}]</span> <span style="color:${colors[type] || colors.info}">${message}</span>`;
+            logPanel.appendChild(logDiv);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        // Helper: Show notification toast
+        function showNotification(message, type = 'success') {
+            const toast = document.getElementById('notificationToast');
+            const bgColor = type === 'success' ? '#28a745' : (type === 'error' ? '#dc3545' : '#17a2b8');
+            toast.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert" style="background: ${bgColor}; color: white; border: none;">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            setTimeout(() => {
+                const alert = toast.querySelector('.alert');
+                if (alert) alert.remove();
+            }, 5000);
+        }
+
+        // Load couriers
+        async function loadCouriers() {
+            try {
+                const response = await fetch('http://localhost:5001/couriers');
+                const couriers = await response.json();
+                const container = document.getElementById('couriersList');
+                if (couriers.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted">No couriers available</div>';
+                    return;
+                }
+                container.innerHTML = couriers.map(c => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <strong><i class="fas fa-user-circle"></i> ${c.name}</strong>
+                            <small class="text-muted d-block">${c.location}</small>
+                        </div>
+                        <span class="status-badge ${c.available ? 'status-created' : 'status-assigned'}">
+                            ${c.available ? 'Available' : 'Busy'}
+                        </span>
+                    </div>
+                `).join('');
+                addLog(`Loaded ${couriers.length} couriers`, 'info');
+            } catch (error) {
+                addLog(`Error loading couriers: ${error.message}`, 'error');
+            }
+        }
+
+        // Load deliveries
+        async function loadDeliveries() {
+            try {
+                const response = await fetch('http://localhost:5001/deliveries');
+                const deliveries = await response.json();
+                const container = document.getElementById('deliveriesList');
+                if (deliveries.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted">No deliveries yet</div>';
+                    return;
+                }
+                container.innerHTML = deliveries.map(d => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <small class="text-muted">${d.task_id}</small>
+                            <div><strong>Order: ${d.order_id}</strong></div>
+                        </div>
+                        <div>
+                            <span class="status-badge status-${d.status.replace('_', '')}">${d.status}</span>
+                            <small class="text-muted d-block">Courier: ${d.courier_name || 'N/A'}</small>
+                        </div>
+                    </div>
+                `).join('');
+                addLog(`Loaded ${deliveries.length} deliveries`, 'info');
+            } catch (error) {
+                addLog(`Error loading deliveries: ${error.message}`, 'error');
+            }
+        }
+
+        // Load notifications
+        async function loadNotifications() {
+            try {
+                const response = await fetch('http://localhost:5003/notifications');
+                const notifications = await response.json();
+                const container = document.getElementById('notificationsList');
+                if (notifications.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted">No notifications yet</div>';
+                    return;
+                }
+                container.innerHTML = notifications.slice(-5).reverse().map(n => `
+                    <div class="log-entry">
+                        <small class="text-muted">${n.type.toUpperCase()}</small>
+                        <div>${n.message.substring(0, 50)}${n.message.length > 50 ? '...' : ''}</div>
+                        <small class="text-muted">To: ${n.recipient}</small>
+                    </div>
+                `).join('');
+            } catch (error) {
+                addLog(`Error loading notifications: ${error.message}`, 'error');
+            }
+        }
+
+        // Get delivery status
+        async function getDeliveryStatus(taskId) {
+            try {
+                const response = await fetch(`http://localhost:5002/track/${taskId}`);
+                const status = await response.json();
+                updateUIWithStatus(status);
+                return status;
+            } catch (error) {
+                addLog(`Error getting status: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        // Update location
+        async function updateLocation(taskId, lat, lng) {
+            try {
+                await fetch('http://localhost:5002/track/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId, lat, lng })
+                });
+                addLog(`Location updated: ${lat}, ${lng}`, 'success');
+                courierLocation = { lat, lng };
+                drawMap();
+            } catch (error) {
+                addLog(`Error updating location: ${error.message}`, 'error');
+            }
+        }
+
+        // Complete delivery
+        async function completeDelivery(taskId) {
+            try {
+                const response = await fetch('http://localhost:5002/track/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId, proof: 'DELIVERY_CODE_' + Date.now() })
+                });
+                const result = await response.json();
+                addLog(`Delivery completed: ${result.message}`, 'success');
+                showNotification(`✓ Delivery ${taskId} completed!`, 'success');
+                await sendNotification();
+                return result;
+            } catch (error) {
+                addLog(`Error completing delivery: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        // Send notification
+        async function sendNotification() {
+            try {
+                const orderId = document.getElementById('orderId').value;
+                const phone = document.getElementById('phone').value;
+                await fetch('http://localhost:5003/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipient: phone,
+                        type: 'sms',
+                        message: `Your order ${orderId} has been delivered successfully!`,
+                        order_id: orderId
+                    })
+                });
+                addLog(`Notification sent to ${phone}`, 'success');
+                loadNotifications();
+            } catch (error) {
+                addLog(`Error sending notification: ${error.message}`, 'error');
+            }
+        }
+
+        // Update UI with status
+        function updateUIWithStatus(status) {
+            const container = document.getElementById('activeDeliveryInfo');
+            const statusClass = `status-${status.status?.replace('_', '') || 'created'}`;
+            container.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="status-badge ${statusClass}">${status.status || 'Unknown'}</span>
+                        <div class="mt-2">
+                            <small>Task ID: ${status.task_id}</small>
+                        </div>
+                    </div>
+                    <div>
+                        ${status.last_location ? `<small>Last location: ${status.last_location.lat}, ${status.last_location.lng}</small>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Draw simple map
+        function drawMap() {
+            const canvas = document.getElementById('mapCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = 200;
+            
+            ctx.fillStyle = '#e9ecef';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#dee2e6';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < canvas.width; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Draw delivery point (target)
+            ctx.fillStyle = '#28a745';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 50, canvas.height / 2, 10, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = '10px Arial';
+            ctx.fillText('Delivery', canvas.width - 70, canvas.height / 2 - 5);
+            
+            // Draw courier (moving)
+            const courierX = 50 + ((courierLocation.lng + 180) % 360) / 360 * (canvas.width - 100);
+            const courierY = canvas.height / 2 + ((courierLocation.lat + 90) % 180) / 180 * 50 - 25;
+            ctx.fillStyle = '#dc3545';
+            ctx.beginPath();
+            ctx.arc(courierX, courierY, 12, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText('🚚', courierX - 6, courierY + 5);
+            ctx.fillStyle = '#dc3545';
+            ctx.font = '10px Arial';
+            ctx.fillText('Courier', courierX - 15, courierY - 5);
+        }
+
+        // Simulate courier movement
+        function startSimulation(taskId, targetLat, targetLng) {
+            let step = 0;
+            const steps = 20;
+            const startLat = 55.7558;
+            const startLng = 37.6173;
+            
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(async () => {
+                step++;
+                const progress = step / steps;
+                const lat = startLat + (targetLat - startLat) * progress;
+                const lng = startLng + (targetLng - startLng) * progress;
+                await updateLocation(taskId, lat, lng);
+                
+                if (step >= steps) {
+                    clearInterval(pollingInterval);
+                    await completeDelivery(taskId);
+                    loadDeliveries();
+                    loadCouriers();
+                    document.getElementById('submitBtn').disabled = false;
+                }
+            }, 1000);
+        }
+
+        // Handle form submission
+        document.getElementById('deliveryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span> Creating...';
+            
+            const orderId = document.getElementById('orderId').value;
+            const address = document.getElementById('address').value;
+            const phone = document.getElementById('phone').value;
+            
+            addLog(`Creating delivery: Order ${orderId} to ${address}`, 'info');
+            
+            try {
+                const response = await fetch('http://localhost:5001/assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: orderId, address, recipient_phone: phone })
+                });
+                const result = await response.json();
+                currentTaskId = result.task_id;
+                addLog(`✓ Delivery created! Task ID: ${currentTaskId}, Courier: ${result.courier_name}`, 'success');
+                showNotification(`✓ Delivery created! Courier ${result.courier_name} assigned`, 'success');
+                
+                // Simulate delivery address (for demo purposes)
+                deliveryAddress = { lat: 55.7600 + Math.random() * 0.01, lng: 37.6200 + Math.random() * 0.01 };
+                
+                // Start simulation
+                startSimulation(currentTaskId, deliveryAddress.lat, deliveryAddress.lng);
+                loadDeliveries();
+                loadCouriers();
+                loadNotifications();
+            } catch (error) {
+                addLog(`Error creating delivery: ${error.message}`, 'error');
+                showNotification(`Failed to create delivery: ${error.message}`, 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Create Delivery';
+            }
+        });
+
+        // Initial load
+        loadCouriers();
+        loadDeliveries();
+        loadNotifications();
+        
+        // Refresh every 10 seconds
+        setInterval(() => {
+            loadCouriers();
+            loadDeliveries();
+        }, 10000);
+        
+        // Draw map on resize
+        window.addEventListener('resize', () => drawMap());
+        setTimeout(() => drawMap(), 500);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

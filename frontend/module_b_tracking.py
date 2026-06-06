@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database.models import init_db, get_db, Delivery, TrackingHistory
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS
 init_db()
 
 @app.route('/track/update', methods=['POST'])

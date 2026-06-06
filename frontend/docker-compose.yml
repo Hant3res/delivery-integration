@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: delivery-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: delivery_db
+      MYSQL_USER: delivery_user
+      MYSQL_PASSWORD: delivery_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - delivery-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.dispatcher
+    container_name: delivery-dispatcher
+    ports:
+      - "5001:5001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+pymysql://delivery_user:delivery_pass@mysql:3306/delivery_db
+    networks:
+      - delivery-network
+
+  tracking:
+    build:
+      context: .
+      dockerfile: Dockerfile.tracking
+    container_name: delivery-tracking
+    ports:
+      - "5002:5002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+pymysql://delivery_user:delivery_pass@mysql:3306/delivery_db
+    networks:
+      - delivery-network
+
+  notify:
+    build:
+      context: .
+      dockerfile: Dockerfile.notify
+    container_name: delivery-notify
+    ports:
+      - "5003:5003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+pymysql://delivery_user:delivery_pass@mysql:3306/delivery_db
+    networks:
+      - delivery-network
+
+  frontend:
+    image: nginx:alpine
+    container_name: delivery-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - dispatcher
+      - tracking
+      - notify
+    networks:
+      - delivery-network
+
+volumes:
+  mysql_data:
+
+networks:
+  delivery-network:
+    driver: bridge

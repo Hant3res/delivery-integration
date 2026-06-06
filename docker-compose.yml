@@ -1,23 +1,6 @@
-services:
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: delivery-sql
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong!Passw0rd
-      - MSSQL_PID=Express
-    ports:
-      - "1433:1433"
-    volumes:
-      - mssql_data:/var/opt/mssql
-    networks:
-      - delivery-network
-    healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong!Passw0rd", "-Q", "SELECT 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
+version: '3.8'
 
+services:
   dispatcher:
     build:
       context: .
@@ -25,11 +8,8 @@ services:
     container_name: delivery-dispatcher
     ports:
       - "5001:5001"
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
+    volumes:
+      - sqlite_data:/app
     networks:
       - delivery-network
 
@@ -40,11 +20,8 @@ services:
     container_name: delivery-tracking
     ports:
       - "5002:5002"
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
+    volumes:
+      - sqlite_data:/app
     networks:
       - delivery-network
 
@@ -55,16 +32,27 @@ services:
     container_name: delivery-notify
     ports:
       - "5003:5003"
+    volumes:
+      - sqlite_data:/app
+    networks:
+      - delivery-network
+
+  frontend:
+    image: nginx:alpine
+    container_name: delivery-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
     depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
+      - dispatcher
+      - tracking
+      - notify
     networks:
       - delivery-network
 
 volumes:
-  mssql_data:
+  sqlite_data:
 
 networks:
   delivery-network:

@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database.models import init_db, get_db, Notification
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS
 init_db()
 
 @app.route('/notify', methods=['POST'])
