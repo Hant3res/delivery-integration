@@ -3,31 +3,21 @@ from flask_cors import CORS
 import uuid
 import sys
 import os
-import time
 from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database.models import init_db, get_db, Courier, Delivery
 from cache import cache
+from performance import perf_monitor
 
 app = Flask(__name__)
 CORS(app)
 init_db()
 
-# Simple in-memory cache for couriers
-_couriers_cache = None
-_couriers_cache_time = 0
-_CACHE_TTL = 10  # seconds
-
+@cache.cached(ttl_seconds=60, key_prefix="couriers_list")
 def get_cached_couriers():
-    """Get couriers with simple caching"""
-    global _couriers_cache, _couriers_cache_time
-    
-    now = time.time()
-    if _couriers_cache is not None and (now - _couriers_cache_time) < _CACHE_TTL:
-        return _couriers_cache
-    
+    """Get couriers with caching"""
     db = next(get_db())
     couriers = db.query(Courier).all()
     result = [{
@@ -37,21 +27,11 @@ def get_cached_couriers():
         "location": c.location
     } for c in couriers]
     db.close()
-    
-    _couriers_cache = result
-    _couriers_cache_time = now
     return result
 
-def invalidate_couriers_cache():
-    """Invalidate couriers cache"""
-    global _couriers_cache, _couriers_cache_time
-    _couriers_cache = None
-    _couriers_cache_time = 0
-
+@perf_monitor.measure_time(name="assign_delivery")
 @app.route('/assign', methods=['POST'])
 def assign_delivery():
-    start = time.time()
-    
     data = request.get_json()
     order_id = data.get('order_id')
     address = data.get('address')
@@ -88,10 +68,7 @@ def assign_delivery():
     db.close()
     
     # Invalidate cache when data changes
-    invalidate_couriers_cache()
-    
-    elapsed = (time.time() - start) * 1000
-    print(f"⏱ assign_delivery took {elapsed:.2f}ms")
+    cache.delete("couriers_list")
     
     return jsonify({
         "task_id": task_id,
@@ -100,40 +77,15 @@ def assign_delivery():
         "status": "assigned"
     }), 200
 
-@app.route('/status/<task_id>', methods=['GET'])
-def get_status(task_id):
-    start = time.time()
-    
-    db = next(get_db())
-    delivery = db.query(Delivery).filter(Delivery.task_id == task_id).first()
-    if not delivery:
-        db.close()
-        return jsonify({"error": "Task not found"}), 404
-    
-    result = {
-        "task_id": delivery.task_id,
-        "order_id": delivery.order_id,
-        "status": delivery.status,
-        "courier_name": delivery.courier_name
-    }
-    db.close()
-    
-    elapsed = (time.time() - start) * 1000
-    print(f"⏱ get_status took {elapsed:.2f}ms")
-    
-    return jsonify(result), 200
-
+@perf_monitor.measure_time(name="get_couriers")
 @app.route('/couriers', methods=['GET'])
 def list_couriers():
-    start = time.time()
     result = get_cached_couriers()
-    elapsed = (time.time() - start) * 1000
-    print(f"⏱ list_couriers took {elapsed:.2f}ms (cached={_couriers_cache is not None})")
     return jsonify(result), 200
 
+@perf_monitor.measure_time(name="get_deliveries")
 @app.route('/deliveries', methods=['GET'])
 def list_deliveries():
-    start = time.time()
     db = next(get_db())
     deliveries = db.query(Delivery).all()
     result = [{
@@ -143,9 +95,11 @@ def list_deliveries():
         "courier_name": d.courier_name
     } for d in deliveries]
     db.close()
-    elapsed = (time.time() - start) * 1000
-    print(f"⏱ list_deliveries took {elapsed:.2f}ms")
     return jsonify(result), 200
+
+@app.route('/performance/stats', methods=['GET'])
+def get_performance_stats():
+    return jsonify(perf_monitor.get_statistics()), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

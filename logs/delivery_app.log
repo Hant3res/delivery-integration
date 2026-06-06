@@ -112,3 +112,4 @@
 {"timestamp": "2026-06-06T01:32:39.653948", "level": "INFO", "logger": "delivery_app", "message": "Returned 3 couriers", "module": "module_a_dispatcher", "function": "list_couriers", "line": 124}
 {"timestamp": "2026-06-06T01:33:39.969271", "level": "INFO", "logger": "delivery_app", "message": "Listing all couriers", "module": "module_a_dispatcher", "function": "list_couriers", "line": 112}
 {"timestamp": "2026-06-06T01:33:39.970689", "level": "INFO", "logger": "delivery_app", "message": "Returned 3 couriers", "module": "module_a_dispatcher", "function": "list_couriers", "line": 124}
+{"timestamp": "2026-06-06T01:41:56.209769", "level": "WARNING", "logger": "delivery_app", "message": "Redis not available, using in-memory fallback: Error 10061 connecting to localhost:6379. Подключение не установлено, т.к. конечный компьютер отверг запрос на подключение.", "module": "cache", "function": "__init__", "line": 17}
