@@ -2,14 +2,12 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import sys
 import os
-import random
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database.models import init_db, get_db, Notification
 
 app = Flask(__name__)
-
 init_db()
 
 @app.route('/notify', methods=['POST'])
@@ -34,36 +32,39 @@ def send_notification():
     )
     db.add(notification)
     db.commit()
+    
+    # Save id BEFORE closing session
+    notification_id = notification.id
+    
     db.close()
     
-    return jsonify({
-        "message": "Notification sent",
-        "notification_id": notification.id
-    }), 200
+    return jsonify({"message": "Notification sent", "notification_id": notification_id}), 200
 
 @app.route('/notifications', methods=['GET'])
 def list_notifications():
     db = next(get_db())
     notifications = db.query(Notification).all()
-    db.close()
-    return jsonify([{
+    result = [{
         "id": n.id,
         "recipient": n.recipient,
         "type": n.type,
         "message": n.message,
         "status": n.status
-    } for n in notifications]), 200
+    } for n in notifications]
+    db.close()
+    return jsonify(result), 200
 
-@app.route('/notify/status/<order_id>', methods=['GET'])
+@app.route('/notify/order/<order_id>', methods=['GET'])
 def get_notifications_by_order(order_id):
     db = next(get_db())
     notifications = db.query(Notification).filter(Notification.order_id == order_id).all()
-    db.close()
-    return jsonify([{
+    result = [{
         "id": n.id,
         "recipient": n.recipient,
         "message": n.message
-    } for n in notifications]), 200
+    } for n in notifications]
+    db.close()
+    return jsonify(result), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5003, debug=True)

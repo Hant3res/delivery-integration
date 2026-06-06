@@ -8,8 +8,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database.models import init_db, get_db, Courier, Delivery
 
 app = Flask(__name__)
-
-# Initialize database on startup
 init_db()
 
 @app.route('/assign', methods=['POST'])
@@ -29,6 +27,10 @@ def assign_delivery():
         db.close()
         return jsonify({"error": "No available couriers"}), 503
     
+    # Save values BEFORE closing session
+    courier_id = courier.courier_id
+    courier_name = courier.name
+    
     courier.available = False
     task_id = str(uuid.uuid4())[:8]
     
@@ -37,8 +39,8 @@ def assign_delivery():
         order_id=order_id,
         address=address,
         recipient_phone=recipient_phone,
-        courier_id=courier.courier_id,
-        courier_name=courier.name,
+        courier_id=courier_id,
+        courier_name=courier_name,
         status="assigned"
     )
     db.add(delivery)
@@ -47,8 +49,8 @@ def assign_delivery():
     
     return jsonify({
         "task_id": task_id,
-        "courier_id": courier.courier_id,
-        "courier_name": courier.name,
+        "courier_id": courier_id,
+        "courier_name": courier_name,
         "status": "assigned"
     }), 200
 
@@ -56,37 +58,44 @@ def assign_delivery():
 def get_status(task_id):
     db = next(get_db())
     delivery = db.query(Delivery).filter(Delivery.task_id == task_id).first()
-    db.close()
     if not delivery:
+        db.close()
         return jsonify({"error": "Task not found"}), 404
-    return jsonify({
+    
+    result = {
         "task_id": delivery.task_id,
         "order_id": delivery.order_id,
         "status": delivery.status,
         "courier_name": delivery.courier_name
-    }), 200
+    }
+    db.close()
+    return jsonify(result), 200
 
 @app.route('/couriers', methods=['GET'])
 def list_couriers():
     db = next(get_db())
     couriers = db.query(Courier).all()
-    db.close()
-    return jsonify([{
+    result = [{
         "id": c.courier_id,
         "name": c.name,
-        "available": c.available
-    } for c in couriers]), 200
+        "available": c.available,
+        "location": c.location
+    } for c in couriers]
+    db.close()
+    return jsonify(result), 200
 
 @app.route('/deliveries', methods=['GET'])
 def list_deliveries():
     db = next(get_db())
     deliveries = db.query(Delivery).all()
-    db.close()
-    return jsonify([{
+    result = [{
         "task_id": d.task_id,
         "order_id": d.order_id,
-        "status": d.status
-    } for d in deliveries]), 200
+        "status": d.status,
+        "courier_name": d.courier_name
+    } for d in deliveries]
+    db.close()
+    return jsonify(result), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

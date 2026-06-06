@@ -1,0 +1,71 @@
+{
+  "test_id": "E2E_20260606_040058",
+  "timestamp": "2026-06-06T04:00:58.506328",
+  "steps": [
+    {
+      "step": "get_couriers",
+      "status": "PASS",
+      "data": [
+        {
+          "available": false,
+          "id": "courier_1",
+          "location": "Moscow",
+          "name": "Ivan"
+        },
+        {
+          "available": false,
+          "id": "courier_2",
+          "location": "Moscow",
+          "name": "Petr"
+        },
+        {
+          "available": true,
+          "id": "courier_3",
+          "location": "Moscow",
+          "name": "Sidor"
+        }
+      ]
+    },
+    {
+      "step": "assign_delivery",
+      "status": "PASS",
+      "task_id": "cceec587"
+    },
+    {
+      "step": "update_tracking",
+      "status": "PASS"
+    },
+    {
+      "step": "get_tracking",
+      "status": "PASS",
+      "data": {
+        "last_location": {
+          "lat": 55.7558,
+          "lng": 37.6173
+        },
+        "last_update": "2026-06-06T01:01:05",
+        "status": "in_transit",
+        "task_id": "cceec587"
+      }
+    },
+    {
+      "step": "complete_delivery",
+      "status": "PASS"
+    },
+    {
+      "step": "check_status",
+      "status": "PASS",
+      "final_status": "delivered"
+    },
+    {
+      "step": "send_notification",
+      "status": "PASS"
+    },
+    {
+      "step": "get_notifications",
+      "status": "PASS",
+      "count": 3
+    }
+  ],
+  "overall_status": "SUCCESS"
+}

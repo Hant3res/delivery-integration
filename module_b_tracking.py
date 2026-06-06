@@ -8,7 +8,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database.models import init_db, get_db, Delivery, TrackingHistory
 
 app = Flask(__name__)
-
 init_db()
 
 @app.route('/track/update', methods=['POST'])
@@ -30,7 +29,6 @@ def update_location():
     )
     db.add(history)
     
-    # Also update delivery status
     delivery = db.query(Delivery).filter(Delivery.task_id == task_id).first()
     if delivery:
         delivery.status = "in_transit"

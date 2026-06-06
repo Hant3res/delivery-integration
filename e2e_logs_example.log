@@ -1,0 +1,17 @@
+2026-06-06 03:30:00,000 - __main__ - INFO - ============================================================
+2026-06-06 03:30:00,000 - __main__ - INFO - STARTING E2E SCENARIO: Order E2E-TEST-001
+2026-06-06 03:30:00,000 - __main__ - INFO - ============================================================
+2026-06-06 03:30:00,000 - __main__ - INFO - [Step 1] Assigning courier for order E2E-TEST-001
+2026-06-06 03:30:00,250 - __main__ - INFO - [Step 1] SUCCESS - Task ID: a1b2c3d4, Courier: Ivan
+2026-06-06 03:30:00,250 - __main__ - INFO - [State] Transitioning from NEW to PROCESSING
+2026-06-06 03:30:00,251 - __main__ - INFO - [Step 3] Updating tracking for task a1b2c3d4
+2026-06-06 03:30:00,450 - __main__ - INFO - [Step 3] SUCCESS - Location updated
+2026-06-06 03:30:00,450 - __main__ - INFO - [State] Transitioning from PROCESSING to IN_TRANSIT
+2026-06-06 03:30:00,451 - __main__ - INFO - [Step 5] Completing delivery for task a1b2c3d4
+2026-06-06 03:30:00,650 - __main__ - INFO - [Step 5] SUCCESS - Delivery completed
+2026-06-06 03:30:00,650 - __main__ - INFO - [State] Transitioning from IN_TRANSIT to DELIVERED
+2026-06-06 03:30:00,651 - __main__ - INFO - [Step 7] Sending notification to +79001234567
+2026-06-06 03:30:00,850 - __main__ - INFO - [Step 7] SUCCESS - Notification sent
+2026-06-06 03:30:00,851 - __main__ - INFO - ============================================================
+2026-06-06 03:30:00,851 - __main__ - INFO - E2E SCENARIO COMPLETED: SUCCESS
+2026-06-06 03:30:00,851 - __main__ - INFO - ============================================================
