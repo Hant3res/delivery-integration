@@ -14,9 +14,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY module_a_dispatcher.py .
+COPY module_b_tracking.py .
 COPY database/ ./database/
 
-EXPOSE 5001
+EXPOSE 5002
 
-CMD ["python", "module_a_dispatcher.py"]
+CMD ["python", "module_b_tracking.py"]

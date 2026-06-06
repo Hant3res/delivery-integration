@@ -1,6 +1,7 @@
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: delivery-sql
     environment:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=YourStrong!Passw0rd
@@ -13,14 +14,15 @@ services:
       - delivery-network
     healthcheck:
       test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong!Passw0rd", "-Q", "SELECT 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 10
 
   dispatcher:
     build:
       context: .
       dockerfile: Dockerfile.dispatcher
+    container_name: delivery-dispatcher
     ports:
       - "5001:5001"
     depends_on:
@@ -35,6 +37,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.tracking
+    container_name: delivery-tracking
     ports:
       - "5002:5002"
     depends_on:
@@ -49,6 +52,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.notify
+    container_name: delivery-notify
     ports:
       - "5003:5003"
     depends_on:
@@ -58,20 +62,6 @@ services:
       - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
     networks:
       - delivery-network
-
-  orchestrator:
-    build:
-      context: .
-      dockerfile: Dockerfile.orchestrator
-    depends_on:
-      - dispatcher
-      - tracking
-      - notify
-      - mssql
-    networks:
-      - delivery-network
-    environment:
-      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
 
 volumes:
   mssql_data:

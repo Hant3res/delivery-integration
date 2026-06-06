@@ -1,74 +1,69 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
-import threading
-import time
+import sys
+import os
 import random
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from database.models import init_db, get_db, Notification
 
 app = Flask(__name__)
 
-notifications_queue = []
-sent_notifications = []
-
-def worker():
-    while True:
-        if notifications_queue:
-            notif = notifications_queue.pop(0)
-            time.sleep(1)
-            notif['sent_at'] = datetime.now().isoformat()
-            notif['status'] = 'sent'
-            sent_notifications.append(notif)
-            print(f"[NOTIFY] Отправлено: {notif['type']} -> {notif['recipient']}")
-        time.sleep(0.5)
-
-thread = threading.Thread(target=worker, daemon=True)
-thread.start()
+init_db()
 
 @app.route('/notify', methods=['POST'])
 def send_notification():
     data = request.get_json()
     recipient = data.get('recipient')
-    message_type = data.get('type')
+    message_type = data.get('type', 'sms')
     message = data.get('message')
     order_id = data.get('order_id')
     
     if not recipient or not message:
         return jsonify({"error": "recipient and message required"}), 400
     
-    notification = {
-        "id": random.randint(1000, 9999),
-        "recipient": recipient,
-        "type": message_type or "sms",
-        "message": message,
-        "order_id": order_id,
-        "queued_at": datetime.now().isoformat(),
-        "status": "queued"
-    }
-    
-    notifications_queue.append(notification)
+    db = next(get_db())
+    notification = Notification(
+        recipient=recipient,
+        type=message_type,
+        message=message,
+        order_id=order_id,
+        status="sent",
+        sent_at=datetime.utcnow()
+    )
+    db.add(notification)
+    db.commit()
+    db.close()
     
     return jsonify({
-        "message": "Notification queued",
-        "notification_id": notification['id'],
-        "status": "queued"
-    }), 202
+        "message": "Notification sent",
+        "notification_id": notification.id
+    }), 200
 
 @app.route('/notifications', methods=['GET'])
 def list_notifications():
-    return jsonify({
-        "queued": notifications_queue,
-        "sent": sent_notifications
-    }), 200
+    db = next(get_db())
+    notifications = db.query(Notification).all()
+    db.close()
+    return jsonify([{
+        "id": n.id,
+        "recipient": n.recipient,
+        "type": n.type,
+        "message": n.message,
+        "status": n.status
+    } for n in notifications]), 200
 
-@app.route('/notify/demo/order-status', methods=['POST'])
-def demo_order_notification():
-    data = request.get_json()
-    phone = data.get('phone')
-    order_id = data.get('order_id')
-    status = data.get('status')
-    
-    message = f"Заказ #{order_id} теперь в статусе: {status}"
-    
-    return send_notification()
+@app.route('/notify/status/<order_id>', methods=['GET'])
+def get_notifications_by_order(order_id):
+    db = next(get_db())
+    notifications = db.query(Notification).filter(Notification.order_id == order_id).all()
+    db.close()
+    return jsonify([{
+        "id": n.id,
+        "recipient": n.recipient,
+        "message": n.message
+    } for n in notifications]), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5003, debug=True)
