@@ -1,10 +1,33 @@
 services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong!Passw0rd
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - delivery-network
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong!Passw0rd", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   dispatcher:
     build:
       context: .
       dockerfile: Dockerfile.dispatcher
     ports:
       - "5001:5001"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
     networks:
       - delivery-network
 
@@ -14,6 +37,11 @@ services:
       dockerfile: Dockerfile.tracking
     ports:
       - "5002:5002"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
     networks:
       - delivery-network
 
@@ -23,6 +51,11 @@ services:
       dockerfile: Dockerfile.notify
     ports:
       - "5003:5003"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
     networks:
       - delivery-network
 
@@ -34,12 +67,14 @@ services:
       - dispatcher
       - tracking
       - notify
+      - mssql
     networks:
       - delivery-network
     environment:
-      - DISPATCHER_URL=http://dispatcher:5001
-      - TRACKING_URL=http://tracking:5002
-      - NOTIFY_URL=http://notify:5003
+      - DATABASE_URL=mssql+pyodbc://sa:YourStrong!Passw0rd@mssql:1433/delivery_db?driver=ODBC+Driver+18+for+SQL+Server&trustservercertificate=yes
+
+volumes:
+  mssql_data:
 
 networks:
   delivery-network:
